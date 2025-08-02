@@ -1,7 +1,6 @@
 const B2 = require('backblaze-b2');
 const crypto = require('crypto');
 
-// B2 配置 - 全部从环境变量读取
 const B2_CONFIG = {
   applicationKeyId: process.env.B2_KEY_ID,
   applicationKey: process.env.B2_APPLICATION_KEY,
@@ -10,14 +9,12 @@ const B2_CONFIG = {
   endpoint: process.env.B2_ENDPOINT
 };
 
-// 验证必要的环境变量
 if (!B2_CONFIG.applicationKeyId || !B2_CONFIG.applicationKey || !B2_CONFIG.bucketName || !B2_CONFIG.bucketId || !B2_CONFIG.endpoint) {
   throw new Error('Missing required B2 environment variables');
 }
 
 const b2 = new B2(B2_CONFIG);
 
-// 生成唯一文件名
 function generateFileName(originalName) {
   const timestamp = Date.now();
   const randomStr = crypto.randomBytes(8).toString('hex');
@@ -25,7 +22,6 @@ function generateFileName(originalName) {
   return `${timestamp}-${randomStr}.${ext}`;
 }
 
-// 获取文件类型
 function getContentType(filename) {
   const ext = filename.split('.').pop().toLowerCase();
   const types = {
@@ -41,7 +37,6 @@ function getContentType(filename) {
 }
 
 exports.handler = async (event, context) => {
-  // 处理 CORS 预检请求
   if (event.httpMethod === 'OPTIONS') {
     return {
       statusCode: 200,
@@ -66,16 +61,14 @@ exports.handler = async (event, context) => {
   }
 
   try {
-    // 解析上传的文件
+    // 解析上传的文件 (与之前相同的逻辑)
     const contentType = event.headers['content-type'];
     let fileBuffer, fileName, originalName;
 
     if (contentType && contentType.includes('multipart/form-data')) {
-      // 处理 multipart/form-data
       const boundary = contentType.split('boundary=')[1];
       const body = Buffer.from(event.body, event.isBase64Encoded ? 'base64' : 'utf8');
       
-      // 简单的 multipart 解析
       const parts = body.toString('binary').split(`--${boundary}`);
       for (const part of parts) {
         if (part.includes('Content-Disposition: form-data') && part.includes('filename=')) {
@@ -90,7 +83,6 @@ exports.handler = async (event, context) => {
         }
       }
     } else {
-      // 处理直接上传的二进制数据
       fileBuffer = Buffer.from(event.body, event.isBase64Encoded ? 'base64' : 'utf8');
       originalName = event.headers['x-filename'] || 'image.jpg';
     }
@@ -111,7 +103,6 @@ exports.handler = async (event, context) => {
       throw new Error('File too large (max 10MB)');
     }
 
-    // 生成新文件名
     fileName = generateFileName(originalName);
 
     // 连接到 B2
@@ -135,9 +126,9 @@ exports.handler = async (event, context) => {
       contentType: getContentType(fileName)
     });
 
-    // 构建文件访问 URL - 使用环境变量中的 endpoint
-    const domain = B2_CONFIG.endpoint.replace('s3.', '');
-    const fileUrl = `https://${B2_CONFIG.bucketName}.${domain}/images/${fileName}`;
+    // 对于私有存储桶，我们返回一个访问图片的 API 端点
+    const siteUrl = process.env.URL || `https://${context.headers.host}`;
+    const fileUrl = `${siteUrl}/.netlify/functions/image?file=${fileName}`;
 
     return {
       statusCode: 200,
@@ -152,7 +143,8 @@ exports.handler = async (event, context) => {
           filename: fileName,
           originalName: originalName,
           size: fileBuffer.length,
-          uploadTime: new Date().toISOString()
+          uploadTime: new Date().toISOString(),
+          note: 'This is a proxy URL for private bucket access'
         }
       })
     };
