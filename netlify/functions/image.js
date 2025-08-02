@@ -1,3 +1,4 @@
+// netlify/functions/image.js - 修复版本
 const B2 = require('backblaze-b2');
 
 const B2_CONFIG = {
@@ -27,25 +28,34 @@ exports.handler = async (event, context) => {
     // 连接到 B2
     await b2.authorize();
 
-    // 获取下载授权
-    const downloadAuth = await b2.getDownloadAuthorization({
-      bucketId: B2_CONFIG.bucketId,
-      fileNamePrefix: `images/${fileName}`,
-      validDurationInSeconds: 3600 // 1小时有效期
+    // 直接下载文件并返回
+    const fileResponse = await b2.downloadFileByName({
+      bucketName: B2_CONFIG.bucketName,
+      fileName: `images/${fileName}`
     });
 
-    // 构建授权下载 URL
-    const domain = B2_CONFIG.endpoint.replace('s3.', '');
-    const authorizedUrl = `https://${B2_CONFIG.bucketName}.${domain}/file/${B2_CONFIG.bucketName}/images/${fileName}?Authorization=${downloadAuth.data.authorizationToken}`;
+    // 确定内容类型
+    const ext = fileName.split('.').pop().toLowerCase();
+    const contentTypes = {
+      'jpg': 'image/jpeg',
+      'jpeg': 'image/jpeg',
+      'png': 'image/png',
+      'gif': 'image/gif',
+      'webp': 'image/webp',
+      'bmp': 'image/bmp',
+      'svg': 'image/svg+xml'
+    };
+    const contentType = contentTypes[ext] || 'application/octet-stream';
 
-    // 重定向到授权 URL
     return {
-      statusCode: 302,
+      statusCode: 200,
       headers: {
-        'Location': authorizedUrl,
-        'Cache-Control': 'public, max-age=3600'
+        'Content-Type': contentType,
+        'Cache-Control': 'public, max-age=31536000', // 1年缓存
+        'Content-Length': fileResponse.data.length.toString()
       },
-      body: ''
+      body: fileResponse.data.toString('base64'),
+      isBase64Encoded: true
     };
 
   } catch (error) {
@@ -57,7 +67,8 @@ exports.handler = async (event, context) => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        error: 'Image not found or access denied'
+        error: 'Image not found or access denied',
+        details: error.message
       })
     };
   }
