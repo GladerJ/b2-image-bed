@@ -1,0 +1,14 @@
+{
+    "name": "b2-image-bed",
+    "version": "1.0.0",
+    "description": "B2 Image Bed API",
+    "scripts": {
+      "dev": "netlify dev",
+      "build": "echo 'No build needed'"
+    },
+    "dependencies": {
+      "backblaze-b2": "^1.7.0",
+      "multer": "^1.4.5-lts.1",
+      "crypto": "^1.0.1"
+    }
+  }
