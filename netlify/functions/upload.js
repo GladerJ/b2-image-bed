@@ -110,6 +110,10 @@ exports.handler = async (event, context) => {
       throw new Error("No file data found");
     }
 
+    if (originalName.includes("..") || originalName.includes("/")) {
+      throw new Error("Invalid filename");
+    }
+
     // 验证文件类型
     const allowedTypes = ["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg"];
     const fileExt = originalName.split(".").pop().toLowerCase();

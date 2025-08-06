@@ -53,6 +53,10 @@ exports.handler = async (event, context) => {
       throw new Error("Filename is required");
     }
 
+    if (filename.includes("..")) {
+      throw new Error("Invalid filename");
+    }
+
     await b2.authorize();
 
     // 列出文件以获取 fileId
